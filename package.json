@@ -1,0 +1,24 @@
+{
+  "name": "hazelnut",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "keywords": [],
+  "author": "synxrhyme",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "kyber-crystals": "^1.0.7",
+    "libphonenumber-js": "^1.12.22",
+    "mongoose": "^8.16.4",
+    "ws": "^8.18.3"
+  }
+}
