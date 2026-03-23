@@ -10,15 +10,16 @@
   "author": "synxrhyme",
   "license": "MIT",
   "dependencies": {
+    "@oqs/liboqs-js": "^0.15.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
-    "firebase-admin": "^13.5.0",
+    "firebase-admin": "^13.7.0",
     "jsonwebtoken": "^9.0.2",
-    "kyber-crystals": "^1.0.7",
     "libphonenumber-js": "^1.12.22",
     "mongoose": "^8.16.4",
+    "util": "^0.12.5",
     "ws": "^8.18.3"
   }
 }

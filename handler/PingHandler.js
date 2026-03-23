@@ -8,3 +8,5 @@ class PingHandler {
         this.client.isAlive = true;
     }
 }
+
+module.exports = { PingHandler };

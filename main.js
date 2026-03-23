@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { aesGcmEncrypt } = require("./util/CryptUtils");
-const { UserScheme }    = require("../schemes/UserScheme");
+const { UserScheme }    = require("./schemes/UserScheme");
 
 const { KyberHandler }            = require("./handler/KyberHandler");
 const { PingHandler }             = require("./handler/PingHandler");
@@ -9,6 +9,7 @@ const { EncryptedMessageHandler } = require("./handler/EncryptedMessageHandler")
 
 const serviceAccount      = require("./serviceAccountKey.json");
 const admin               = require("firebase-admin");
+const mongoose            = require("mongoose");
 const express             = require("express");
 const path                = require("path");
 const { WebSocketServer } = require("ws");
@@ -35,10 +36,14 @@ wss.on("connection", (client) => {
         try {
             const _data = JSON.parse(event.toString());
 
+            const kyberHandler        = new KyberHandler(client, _data, process.env.ID);
+            const pingHandler         = new PingHandler(client);
+            const encryptedMsgHandler = new EncryptedMessageHandler(client, _data, SECRET_KEY);
+
             switch (_data.type) {
-                case "kyber_key": KyberHandler(client, _data, process.env.ID).handleKyber();
-                case "ping":      PingHandler(client).handlePing();
-                case "enc":       EncryptedMessageHandler(client, _data, SECRET_KEY).handleEncrypted();
+                case "kyber_key": kyberHandler.handleKyber();            break;
+                case "ping":      pingHandler.handlePing();              break;
+                case "enc":       encryptedMsgHandler.handleEncrypted(); break;
             }
 
         } catch (err) {

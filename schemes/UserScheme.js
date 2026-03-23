@@ -11,4 +11,4 @@ const UserScheme = new mongoose.Schema({
     lastSeen:         { type: String,  default: () => new Date().toISOString() },
 });
 
-module.exports = { UserSchemes };
+module.exports = { UserScheme };

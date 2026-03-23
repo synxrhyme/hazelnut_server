@@ -2,6 +2,7 @@ const { MessageScheme } = require("../schemes/MessageScheme");
 const { ChatScheme }    = require("../schemes/ChatScheme");
 const { UserScheme }    = require("../schemes/UserScheme");
 
+const mongoose = require("mongoose");
 const dbConnection = mongoose.createConnection("mongodb://server:supersecuremongodbpassword@127.0.0.1:27017/hazelnut_db?authSource=admin");
 
 const Message = dbConnection.model("Message", MessageScheme, "hazelnut_msgdb");
@@ -691,3 +692,5 @@ async function sendPushNotification(fcmToken, chat, sentTimestamp) {
     console.error("Error sending message:", error);
   }
 }
+
+module.exports = { EncryptedMessageHandler };
