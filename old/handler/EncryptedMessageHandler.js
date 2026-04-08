@@ -24,19 +24,10 @@ class EncryptedMessageHandler {
         let replyPayload = {};
 
         try {
-            const plaintext = aesGcmDecrypt(this.client.sessionKey, this.raw.iv, this.raw.data, this.raw.tag);
+            const plaintext = aesGcmDecrypt(this.client.sessionKey, this.raw.iv, this.raw.data);
             console.log("Client → (dec):", plaintext);
 
             const data = JSON.parse(plaintext);
-
-            const echoPayload = {
-                type: "echo",
-                timestamp: Date.now(),
-                got: data,
-            };
-
-            const echoEnc = aesGcmEncrypt(this.client.sessionKey, JSON.stringify(echoPayload));
-            this.client.send(JSON.stringify({ type: "enc", iv: echoEnc.iv, data: echoEnc.data, tag: echoEnc.tag }));
 
             switch (data.header) {
                 case "auth": {
@@ -88,8 +79,8 @@ class EncryptedMessageHandler {
                                 this.client.ready = true;
 
                                 await User.updateOne(
-                                  { userId: userId },
-                                  { $set: { online: true } }
+                                    { userId: userId },
+                                    { $set: { online: true } }
                                 );
 
                                 break;
@@ -107,7 +98,7 @@ class EncryptedMessageHandler {
                         }
                         
                         else {
-                          console.error("Error: ", err);
+                            console.error("Error: ", err);
                         }
 
                         replyPayload = {
@@ -378,10 +369,10 @@ class EncryptedMessageHandler {
                                 console.log(chat);
 
                                 const userList = chat.users.map(u => ({
-                                  userId: u.userId,
-                                  username: u.username,
-                                  joinedTimestamp: u.createdTimestamp,
-                                  lastSeen: u.lastSeen
+                                    userId: u.userId,
+                                    username: u.username,
+                                    joinedTimestamp: u.createdTimestamp,
+                                    lastSeen: u.lastSeen
                                 }));
 
                                 console.log(userList);
@@ -459,9 +450,9 @@ class EncryptedMessageHandler {
                                 sentTimestamp: now,
                             
                                 receivers: receiverIds.map(id => ({
-                                  userId: id,
-                                  received: false,
-                                  receivedTimestamp: "",
+                                    userId: id,
+                                    received: false,
+                                    receivedTimestamp: "",
                                 })),
                             });
                         
@@ -552,13 +543,13 @@ class EncryptedMessageHandler {
                             const messageId = data.body.messageId;
 
                             await Message.updateOne(
-                              { messageId, "receivers.userId": data.body.receiverId },
-                              {
-                                $set: {
-                                  "receivers.$.received": true,
-                                  "receivers.$.receivedTimestamp": new Date().toISOString(),
-                                },
-                              }
+                                { messageId, "receivers.userId": data.body.receiverId },
+                                {
+                                    $set: {
+                                        "receivers.$.received": true,
+                                        "receivers.$.receivedTimestamp": new Date().toISOString(),
+                                    },
+                                }
                             );
 
                             break;
@@ -604,7 +595,7 @@ class EncryptedMessageHandler {
                             const latestMessageId = data.body.latestId;
 
                             const messages = await Message.find({
-                              messageId: { $gt: latestMessageId }
+                                messageId: { $gt: latestMessageId }
                             });
 
                             replyPayload = {
@@ -633,64 +624,6 @@ class EncryptedMessageHandler {
             console.log("Server → (enc):", JSON.stringify(replyPayload));
         }
     }
-}
-
-async function auth(userId, token) {
-    try {
-        const payload = jwt.verify(token, SECRET_KEY);
-        if (payload.userId !== userId) return 1; // -- Token passt nicht zu UserID
-
-        const user = await User.findOne({ userId: userId });
-        if (user == null) return 2; // -- User nicht gefunden
-
-        if (user.userId == userId) return 0; // -- Erfolgreich authentifiziert
-    }
-
-    catch (err) {
-        return 3; // -- Invalider Token
-    }
-    
-}
-
-function isEmptyObject(obj) {
-  for (var key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-async function sendPushNotification(fcmToken, chat, sentTimestamp) {
-    const message = {
-        token: fcmToken,
-        data: {
-            type: "new_message",
-            chatName: chat.chatName.toString(),
-            chatId: chat.chatId.toString(),
-            sentTimestamp: sentTimestamp,
-        },
-        android: {
-            priority: "HIGH",
-        },
-        apns: {
-            headers: {
-                "apns-priority": "10"
-            },
-            payload: {
-                aps: {
-                    sound: "default"
-                }
-            }
-        }
-    };
-
-  try {
-    const response = await admin.messaging().send(message);
-    console.log("Successfully sent message:", response);
-  } catch (error) {
-    console.error("Error sending message:", error);
-  }
 }
 
 module.exports = { EncryptedMessageHandler };

@@ -34,7 +34,7 @@ class KyberHandler {
             const { publicKey: mldsaPublicKey, secretKey: mldsaSecretKey } = signer.generateKeyPair();
             const { publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey } = crypto.generateKeyPairSync('ed25519');
 
-            const { ciphertext, sharedSecret } = kem.encapsulate(publicKeyBytes);
+            const { ciphertext, sharedSecret } = kem.encapsulating(publicKeyBytes);
             const aesKey = await deriveAesKey(Buffer.from(sharedSecret));
             
             this.client.sessionKey = aesKey;
@@ -81,7 +81,7 @@ class KyberHandler {
             const enc = aesGcmEncrypt(this.client.sessionKey, JSON.stringify(replyPayload));
             this.client.send(JSON.stringify({ type: "enc", iv: enc.iv, data: enc.data, tag: enc.tag }));
 
-            //console.log("Server → (enc):", JSON.stringify(replyPayload));
+            console.log("Server → (enc):", JSON.stringify(replyPayload));
         }
     }
 }
