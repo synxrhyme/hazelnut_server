@@ -25,18 +25,18 @@ class EncryptedMessageHandler {
 
         try {
             const plaintext = aesGcmDecrypt(this.client.sessionKey, this.raw.iv, this.raw.data);
-            console.log("Client → (dec):", plaintext);
+            safeLog("Client → (dec):", plaintext);
 
             const data = JSON.parse(plaintext);
 
             switch (data.header) {
                 case "auth": {
                     try {
-                        const payload = jwt.verify(data.body.token, this.SECRET_KEY);
+                        const payload = jwt.verify(data.body.authToken, this.SECRET_KEY);
                         const userId = data.body.userId;
                         
                         if (payload.userId !== userId) {
-                            console.log("Token passt nicht zu UserID.");
+                            safeLog("Token passt nicht zu UserID.");
                         
                             replyPayload = {
                                 header: "auth_response",
@@ -53,7 +53,7 @@ class EncryptedMessageHandler {
                             const user = await User.findOne({ userId });
                         
                             if (user == null) {
-                                console.log("User nicht gefunden.");
+                                safeLog("User nicht gefunden.");
                             
                                 replyPayload = {
                                     header: "auth_response",
@@ -114,7 +114,7 @@ class EncryptedMessageHandler {
                 }
 
                 case "registration": {
-                    console.log("New User");
+                    safeLog("New User");
 
                     const findUsername = await User.findOne({ username: data.body.username });
                     
@@ -150,7 +150,7 @@ class EncryptedMessageHandler {
                     });
 
                     const createdUser = await User.findOne({ userId });
-                    console.log("Created user: " + createdUser);
+                    safeLog("Created user: " + createdUser);
 
                     replyPayload = {
                         header: "registration_response",
@@ -207,7 +207,7 @@ class EncryptedMessageHandler {
                 }
 
                 case "image_upload": {
-                    console.log("Profile picture upload");
+                    safeLog("Profile picture upload");
                     const buffer = Buffer.from(data.data, "base64");
 
                     fs.writeFileSync(
@@ -215,7 +215,7 @@ class EncryptedMessageHandler {
                         buffer
                     );
 
-                    console.log(
+                    safeLog(
                         "Image saved as: " +
                             data.user +
                             ".png  --  at: " +
@@ -226,7 +226,7 @@ class EncryptedMessageHandler {
                 }
 
                 case "create_chat": {
-                    console.log("authCode:", data.authToken);
+                    safeLog("authCode:", data.authToken);
                     const authCode = await auth(data.userId, data.authToken);
 
                     switch (authCode) {
@@ -251,7 +251,7 @@ class EncryptedMessageHandler {
                         case 0: break;
                     }
 
-                    console.log("User creates new chatroom");
+                    safeLog("User creates new chatroom");
 
                     const now = new Date().toISOString();
                     const user = await User.findOne({ userId: data.userId });
@@ -267,7 +267,7 @@ class EncryptedMessageHandler {
                             statusCode: 0, // -- Chat existiert schon
                         };
 
-                        console.log("Chat existiert schon");
+                        safeLog("Chat existiert schon");
                     }
                     
                     else {
@@ -275,7 +275,7 @@ class EncryptedMessageHandler {
                         const latestChat = await Chat.findOne().sort({ chatId: -1 });
                         if (latestChat != null) { chatId = latestChat.chatId + 1; }
 
-                        console.log(chatId, " -- ", latestChat);
+                        safeLog(chatId, " -- ", latestChat);
 
                         await Chat.create({
                             chatId:           chatId,
@@ -288,7 +288,7 @@ class EncryptedMessageHandler {
                         });
 
                         const createdChat = await Chat.findOne({ chatId });
-                        console.log("Created chat: " + createdChat);
+                        safeLog("Created chat: " + createdChat);
 
                         replyPayload = {
                             header: "chat_creation_response",
@@ -308,7 +308,7 @@ class EncryptedMessageHandler {
                 }
 
                 case "join_chat": {
-                    console.log("User tries to join chatroom");
+                    safeLog("User tries to join chatroom");
                     replyPayload = { header: "join_response", statusCode: 0 };
                     const authCode = await auth(data.userId, data.authToken);
 
@@ -342,10 +342,10 @@ class EncryptedMessageHandler {
                         }
                         
                         case 0: {
-                            console.log("User tries to join chatroom");
+                            safeLog("User tries to join chatroom");
 
                             const chatName = data.body.chatName;
-                            console.log("chatName:", chatName);
+                            safeLog("chatName:", chatName);
                             const chat = await Chat.findOne({ chatName: chatName });
                             const user = await User.findOne({ userId: data.userId });
                             
@@ -366,7 +366,7 @@ class EncryptedMessageHandler {
                                 chat.save();
                                 await chat.populate({ path: "users",  select: "userId username createdTimestamp lastSeen" });
 
-                                console.log(chat);
+                                safeLog(chat);
 
                                 const userList = chat.users.map(u => ({
                                     userId: u.userId,
@@ -375,7 +375,7 @@ class EncryptedMessageHandler {
                                     lastSeen: u.lastSeen
                                 }));
 
-                                console.log(userList);
+                                safeLog(userList);
                             
                                 replyPayload.statusCode = 3; // -- Erfolgreich beigetreten
                                 replyPayload.body = {
@@ -457,7 +457,7 @@ class EncryptedMessageHandler {
                             });
                         
                             const createdMessage = await Message.findOne({ messageId });
-                            console.log(createdMessage);
+                            safeLog(createdMessage);
                         
                             replyPayload = {
                                 header: "message_response",
@@ -614,14 +614,14 @@ class EncryptedMessageHandler {
         }
         
         catch (err) {
-            console.log(err.toString());
+            safeLog(err.toString());
         }
 
         if (!isEmptyObject(replyPayload)) {
             const enc = aesGcmEncrypt(this.client.sessionKey, JSON.stringify(replyPayload));
             this.client.send(JSON.stringify({ type: "enc", iv: enc.iv, data: enc.data, tag: enc.tag }));
 
-            console.log("Server → (enc):", JSON.stringify(replyPayload));
+            safeLog("Server → (enc):", JSON.stringify(replyPayload));
         }
     }
 }

@@ -1,6 +1,7 @@
 const { createMachine, fromPromise, assign, sendParent } = require("xstate");
-const { sendPushNotification, auth } = require("../util/OtherUtil");
-const { aesGcmEncrypt }              = require("../util/CryptUtils");
+const { sendPushNotification, auth, broadcast } = require("../util/OtherUtil");
+const { aesGcmEncrypt } = require("../util/CryptUtils");
+const { safeLog } = require("../util/ServerControl");
 
 const appMachine = createMachine(
     {
@@ -24,7 +25,7 @@ const appMachine = createMachine(
         states: {
             idle: {
                 entry: [
-                    () => console.log("Waiting for app request..."),
+                    () => safeLog("Waiting for app request..."),
                     assign({ currentMessage: null, pendingPayload: null })
                 ],
                 on: {
@@ -282,7 +283,7 @@ const appMachine = createMachine(
                 invoke: {
                     src: fromPromise(async ({ input }) => {
                         const replyPayload = input.payload;
-                        console.log("Command finished, sending encrypted response:", replyPayload);
+                        safeLog("Command finished, sending encrypted response:", replyPayload);
 
                         const encryptedReply = await aesGcmEncrypt(
                             input.client.sessionKey,
@@ -330,7 +331,7 @@ const appMachine = createMachine(
     {
         actors: {
             createChat: fromPromise(async ({ input }) => {
-                console.log("data:", input.data);
+                safeLog("data:", input.data);
 
                 const User = input.userModel;
                 const Chat = input.chatModel;
@@ -368,7 +369,7 @@ const appMachine = createMachine(
                     }
 
                     case 0: {
-                        console.log("User creates new chatroom");
+                        safeLog("User creates new chatroom");
 
                         const now = new Date().toISOString();
                         const user = await User.findOne({ userId: userId });
@@ -378,7 +379,7 @@ const appMachine = createMachine(
                         }
                     
                         if (await Chat.findOne({ chatName: input.data.body.chatName }) != null) {
-                            console.log("Chat existiert schon");
+                            safeLog("Chat existiert schon");
                         
                             return {
                                 header: "chat_creation_response",
@@ -394,7 +395,7 @@ const appMachine = createMachine(
                                 chatId = latestChat.chatId + 1;
                             }
                         
-                            console.log(chatId, " -- ", latestChat);
+                            safeLog(chatId, " -- ", latestChat);
                         
                             await Chat.create({
                                 chatId:           chatId,
@@ -407,7 +408,7 @@ const appMachine = createMachine(
                             });
                         
                             const createdChat = await Chat.findOne({ chatId });
-                            console.log("Created chat: " + createdChat);
+                            safeLog("Created chat: " + createdChat);
                         
                             return {
                                 header: "chat_creation_response",
@@ -427,7 +428,7 @@ const appMachine = createMachine(
             }), 
 
             joinChat: fromPromise(async ({ input }) => {
-                console.log("User tries to join chatroom");
+                safeLog("User tries to join chatroom");
 
                 const User = input.userModel;
                 const Chat = input.chatModel;
@@ -465,10 +466,10 @@ const appMachine = createMachine(
                     }
 
                     case 0: {
-                        console.log("User tries to join chatroom");
+                        safeLog("User tries to join chatroom");
 
                         const chatName = input.data.body.chatName;
-                        console.log("chatName:", chatName);
+                        safeLog("chatName:", chatName);
 
                         const chat = await Chat.findOne({ chatName: chatName });
                         const user = await User.findOne({ userId: userId });
@@ -499,8 +500,7 @@ const appMachine = createMachine(
                             chat.save();
 
                             await chat.populate({ path: "users",  select: "userId username createdTimestamp lastSeen" });
-
-                            console.log(chat);
+                            safeLog(chat);
 
                             const userList = chat.users.map(u => ({
                                 userId:          u.userId,
@@ -509,7 +509,7 @@ const appMachine = createMachine(
                                 lastSeen:        u.lastSeen
                             }));
 
-                            console.log(userList);
+                            safeLog(userList);
 
                             return {
                                 header: "join_response",
@@ -597,7 +597,7 @@ const appMachine = createMachine(
                         });
                     
                         const createdMessage = await Message.findOne({ messageId });
-                        console.log(createdMessage);
+                        safeLog(createdMessage);
 
                         const broadcastPayload = {
                             header: "broadcast_message",
@@ -612,7 +612,7 @@ const appMachine = createMachine(
                             }
                         };
 
-                        input.wss.broadcast(broadcastPayload);
+                        broadcast(input.wss, broadcastPayload);
                     
                         for (var index in createdMessage.receivers) {
                             let receiver = createdMessage.receivers[index];

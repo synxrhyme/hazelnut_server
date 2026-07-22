@@ -1,4 +1,5 @@
 const { createMachine, assign, forwardTo } = require("xstate");
+const { safeLog } = require("../util/ServerControl");
 
 const { handshakeMachine } = require("./handshakeMachine");
 const { authMachine }      = require("./authMachine");
@@ -47,7 +48,7 @@ const mainMachine = createMachine(
                     }),
                     onDone: {
                         actions: [
-                            () => console.log("Handshake successful, proceeding to authentication..."),
+                            () => safeLog("Handshake successful, proceeding to authentication..."),
                             assign({
                                 initialMessage: null
                             })
@@ -78,7 +79,7 @@ const mainMachine = createMachine(
                     }),
                     onDone: {
                         actions: [
-                            () => console.log("Authentication successful, proceeding to application...")
+                            () => safeLog("Authentication successful, proceeding to application...")
                         ],
                         target: 'app'
                     },
@@ -90,13 +91,13 @@ const mainMachine = createMachine(
                 on: {
                     WS_MESSAGE_ENCRYPTED: {
                         actions: [
-                            () => console.log("Forwarding encrypted message to authMachine..."),
+                            () => safeLog("Forwarding encrypted message to authMachine..."),
                             "forwardToAuth"
                         ]
                     },
                     TOKEN_EXPIRED: {
                         target: 'auth',
-                        actions: () => console.log("Token abgelaufen, zurück zu auth...")
+                        actions: () => safeLog("Token abgelaufen, zurück zu auth...")
                     }
                 }
             },
@@ -123,7 +124,7 @@ const mainMachine = createMachine(
                 on: {
                     WS_MESSAGE_ENCRYPTED: {
                         actions: [
-                            () => console.log("Forwarding encrypted message to appMachine..."),
+                            () => safeLog("Forwarding encrypted message to appMachine..."),
                             "forwardToApp"
                         ]
                     }

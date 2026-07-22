@@ -69,7 +69,7 @@ class KyberHandler {
             };
     
             this.client.send(JSON.stringify(replyPayload));
-            console.log("WS: AES-Key gesetzt.");
+            safeLog("WS: AES-Key gesetzt.");
         }
     
         catch (e) {
@@ -81,7 +81,7 @@ class KyberHandler {
             const enc = aesGcmEncrypt(this.client.sessionKey, JSON.stringify(replyPayload));
             this.client.send(JSON.stringify({ type: "enc", iv: enc.iv, data: enc.data, tag: enc.tag }));
 
-            console.log("Server → (enc):", JSON.stringify(replyPayload));
+            safeLog("Server → (enc):", JSON.stringify(replyPayload));
         }
     }
 }

@@ -1,4 +1,7 @@
+const { aesGcmEncrypt } = require("./CryptUtils");
+const { safeLog } = require("./ServerControl");
 const jwt = require("jsonwebtoken");
+const admin = require("firebase-admin");
 const JWT_SECRET_KEY = process.env.JWT_SECRET;
 
 async function auth(userModel, userId, token) {
@@ -54,14 +57,31 @@ async function sendPushNotification(fcmToken, chat, sentTimestamp) {
 
     try {
         const response = await admin.messaging().send(message);
-        console.log("Successfully sent message:", response);
+        safeLog("Successfully sent message:", response);
     } catch (error) {
-        console.error("Error sending message:", error);
+        safeLog("Error sending message:", error);
     }
 }
+
+async function broadcast(wss, payload) {
+    const receiversList = payload.body.receiversList;
+
+    wss.clients.forEach(async (client) => {
+        if (client.ready == true && receiversList.some(r => r.userId === client.userId)) {
+            safeLog("broadcasting to:", client.userId);
+
+            const _enc = await aesGcmEncrypt(client.sessionKey, JSON.stringify(payload));
+            const response = JSON.stringify({ type: "enc", iv: _enc.iv, data: _enc.data, tag: _enc.tag });
+            safeLog("response", response);
+            
+            client.send(response);
+        }
+    });
+};
 
 module.exports = {
     auth,
     isEmptyObject,
-    sendPushNotification
+    sendPushNotification,
+    broadcast
 }

@@ -1,5 +1,6 @@
 const { createMachine, assign, fromPromise } = require("xstate");
-const crypto                          = require("node:crypto");
+const { safeLog } = require("../util/ServerControl");
+const crypto = require("node:crypto");
 const { deriveAesKey, aesGcmEncrypt } = require("../util/CryptUtils");
 
 const handshakeMachine = createMachine(
@@ -45,7 +46,7 @@ const handshakeMachine = createMachine(
         states: {
             verifyingClientPayload: {
                 entry: [
-                    //() => console.log("Verifying Client Payload..."),
+                    //() => safeLog("Verifying Client Payload..."),
                     assign({
                         clientEd25519PublicKey: ({ context }) => {
                             const rawPubKey = Buffer.from(context.data.publicKey, "base64");
@@ -90,13 +91,13 @@ const handshakeMachine = createMachine(
                     },
                     {
                         target: 'error.confirmationInvalid',
-                        actions: () => console.log("Client payload verification failed, starting over!")
+                        actions: () => safeLog("Client payload verification failed, starting over!")
                     }
                 ]
             },
 
             loadingLibs: {
-                //entry: () => console.log("Loading cryptographic libraries..."),
+                //entry: () => safeLog("Loading cryptographic libraries..."),
                 invoke: {
                     src: 'loadLibs',
                     onDone: {
@@ -116,7 +117,7 @@ const handshakeMachine = createMachine(
             },
 
             validatingID: {
-                //entry: () => console.log("Validating ID..."),
+                //entry: () => safeLog("Validating ID..."),
                 always: [
                     {
                         cond: 'isValidID',
@@ -129,7 +130,7 @@ const handshakeMachine = createMachine(
 
             generatingKeys: {
                 entry: [
-                    //() => console.log("Generating Keys..."),
+                    //() => safeLog("Generating Keys..."),
                     assign({
                         mlkemPublicKeyBytes: ({ context }) => {
                             const mlkemPublicKeyBytes = new Uint8Array(Buffer.from(context.data.publicKey, "base64"));
@@ -151,7 +152,7 @@ const handshakeMachine = createMachine(
 
             encapsulating: {
                 entry: assign(({ context }) => {
-                    //console.log("Encapsulating...");
+                    //safeLog("Encapsulating...");
                     const { ciphertext, sharedSecret } = context.kem.encapsulate(context.mlkemPublicKeyBytes);
                     return {
                         ...context,
@@ -164,7 +165,7 @@ const handshakeMachine = createMachine(
             },
 
             derivingKey: {
-                //entry: () => console.log("Deriving AES key..."),
+                //entry: () => safeLog("Deriving AES key..."),
                 invoke: {
                     src: 'derivingKey',
                     input: ({ context }) => ({
@@ -174,11 +175,11 @@ const handshakeMachine = createMachine(
                         target: 'signingKeyPacket',
                         actions: assign({
                             aesKey: ({ event }) => {
-                                //console.log("Derived AES key successfully");
+                                //safeLog("Derived AES key successfully");
                                 return event.output.key;
                             },
                             aesKeyHash: ({ event }) => {
-                                //console.log("Calculated AES key hash successfully");
+                                //safeLog("Calculated AES key hash successfully");
                                 return event.output.hash;
                             }
                         }),
@@ -189,7 +190,7 @@ const handshakeMachine = createMachine(
 
             signingKeyPacket: {
                 entry: [
-                    //() => console.log("Signing packet..."),
+                    //() => safeLog("Signing packet..."),
                     assign(({ context }) => {
                         const timestamp = Date.now();
 
@@ -235,7 +236,7 @@ const handshakeMachine = createMachine(
 
             buildingResponse: {
                 entry: [
-                    //() => console.log("Building response payload..."),
+                    //() => safeLog("Building response payload..."),
                     assign({
                         replyPayload: ({ context }) => {
                             return {
@@ -259,7 +260,7 @@ const handshakeMachine = createMachine(
 
             sendingPlain: {
                 entry: [
-                    //() => console.log("Sending response to client..."),
+                    //() => safeLog("Sending response to client..."),
                     assign({
                         client: ({ context }) => {
                             context.client.sessionKey = context.aesKey;
@@ -273,7 +274,7 @@ const handshakeMachine = createMachine(
             },
 
             waitingForConfirmation: {
-                //entry: () => console.log("Waiting for confirmation from client..."),
+                //entry: () => safeLog("Waiting for confirmation from client..."),
                 on: {
                     WS_MESSAGE_CONFIRM: {
                         actions: assign({
@@ -289,7 +290,7 @@ const handshakeMachine = createMachine(
 
             validatingConfirmation: {
                 entry: [
-                    //() => console.log("Validating confirmation from client..."),
+                    //() => safeLog("Validating confirmation from client..."),
                     assign({
                         clientIsVerifiedConfirm: ({ context }) => {
                             const messageToVerify = Buffer.concat([
@@ -313,13 +314,13 @@ const handshakeMachine = createMachine(
                         cond: "isValidConfirmation",
                         target: "checkingConfirmationHash",
                         actions: ({ context }) => {
-                            //console.log("Message signature valid, checking confirmation hash...");
+                            //safeLog("Message signature valid, checking confirmation hash...");
                             context.client.sessionKey = context.aesKey;
                         }
                     },
                     {
                         target: "error.confirmationInvalid",
-                        actions: () => console.log("Invalid confirmation received, starting over!")
+                        actions: () => safeLog("Invalid confirmation received, starting over!")
                     }
                 ]
             },
@@ -330,13 +331,13 @@ const handshakeMachine = createMachine(
                         cond: "isValidHash",
                         target: "informingClientOfSuccess",
                         actions: ({ context }) => {
-                            //console.log("Confirmation valid, imforming client...");
+                            //safeLog("Confirmation valid, imforming client...");
                             context.client.sessionKey = context.aesKey;
                         }
                     },
                     {
                         target: "error.confirmationHashInvalid",
-                        actions: () => console.log("Invalid confirmation hash received, starting over!")
+                        actions: () => safeLog("Invalid confirmation hash received, starting over!")
                     }
                 ]
             },
@@ -346,14 +347,14 @@ const handshakeMachine = createMachine(
                     src: fromPromise(async ({ input }) => {
                         const successMessage = {
                             header: "handshake_response",
-                            body: { status: "success" }
+                            status: "success"
                         };
 
                         const enc = await aesGcmEncrypt(input.sessionKey, JSON.stringify(successMessage));
                         const reply = JSON.stringify({ type: "enc", iv: enc.iv, data: enc.data, tag: enc.tag });
                         input.client.send(reply);
 
-                        //console.log("Client informed of success, finished handshake!");
+                        //safeLog("Client informed of success, finished handshake!");
                     }),
                     input: ({ context }) => ({
                         client: context.client,

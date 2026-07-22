@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { createMachine, assign, fromPromise } = require("xstate");
 const { aesGcmEncrypt } = require("../util/CryptUtils");
+const { safeLog } = require("../util/ServerControl");
 const { generateAuthToken, generateUserID, generateRefreshToken } = require("../util/TokenGeneration");
 
 const authMachine = createMachine(
@@ -24,7 +25,7 @@ const authMachine = createMachine(
 
         states: {
             idle: {
-                entry: () => console.log("Waiting for authentication request..."),
+                entry: () => safeLog("Waiting for authentication request..."),
                 on: {
                     WS_MESSAGE_ENCRYPTED: [
                         {
@@ -53,13 +54,13 @@ const authMachine = createMachine(
             },
 
             waitingForSignup: {
-                entry: () => console.log("Waiting for signup request..."),
+                entry: () => safeLog("Waiting for signup request..."),
                 on: {
                     WS_MESSAGE_ENCRYPTED: {
                         guard: ({ event }) => event.parsed?.header === "auth_request" && event.parsed?.body?.type === "signup",
                         target: "signup",
                         actions: [
-                            () => console.log("Received signup request, processing..."),
+                            () => safeLog("Received signup request, processing..."),
                             assign({
                                 signupData: ({ event }) => event.parsed?.body
                             })
@@ -85,7 +86,7 @@ const authMachine = createMachine(
                         target: 'authenticatedThroughSignup',
                         actions: async ({ event, context }) => {
                             const replyPayload = event.output;
-                            console.log("Signup successful, sending encrypted response:", replyPayload);
+                            safeLog("Signup successful, sending encrypted response:", replyPayload);
 
                             const encryptedReply = await aesGcmEncrypt(
                                 context.client.sessionKey,
@@ -122,7 +123,7 @@ const authMachine = createMachine(
                         target: 'authenticated',
                         actions: async ({ event, context }) => {
                             const replyPayload = event.output;
-                            console.log("Authentication finished, sending encrypted response:", replyPayload);
+                            safeLog("Authentication finished, sending encrypted response:", replyPayload);
 
                             const encryptedReply = await aesGcmEncrypt(
                                 context.client.sessionKey,
@@ -150,7 +151,7 @@ const authMachine = createMachine(
                                     },
                                 }
 
-                                console.log("Token expired, sending response:", replyPayload);
+                                safeLog("Token expired, sending response:", replyPayload);
 
                                 const encryptedReply = await aesGcmEncrypt(
                                     context.client.sessionKey,
@@ -177,13 +178,13 @@ const authMachine = createMachine(
             },
 
             waitingForTokenRefresh: {
-                entry: () => console.log("Waiting for refresh token request..."),
+                entry: () => safeLog("Waiting for refresh token request..."),
                 on: {
                     WS_MESSAGE_ENCRYPTED: {
                         guard: ({ event }) => event.parsed?.header === "refresh_request",
                         target: "tokenRefresh",
                         actions: [
-                            () => console.log("Received refresh token, processing..."),
+                            () => safeLog("Received refresh token, processing..."),
                             assign({
                                 tokenRefreshData: ({ event }) => event.parsed?.body
                             })
@@ -219,7 +220,7 @@ const authMachine = createMachine(
                     
                             return {
                                 header: "refresh_response",
-                                status: "valid",
+                                status: "success",
                                 body: {
                                     authToken: newAuthToken,
                                     timestamp: now
@@ -241,7 +242,7 @@ const authMachine = createMachine(
                         target: 'idle',
                         actions: async ({ event, context }) => {
                             const replyPayload = event.output;
-                            console.log("Refresh finished, sending encrypted response:", replyPayload);
+                            safeLog("Refresh finished, sending encrypted response:", replyPayload);
 
                             const encryptedReply = await aesGcmEncrypt(
                                 context.client.sessionKey,
@@ -269,7 +270,7 @@ const authMachine = createMachine(
                                     }
                                 }
 
-                                console.log("Refresh user invalid, sending encrypted response:", replyPayload);
+                                safeLog("Refresh user invalid, sending encrypted response:", replyPayload);
 
                                 const encryptedReply = await aesGcmEncrypt(
                                     context.client.sessionKey,
@@ -323,7 +324,7 @@ const authMachine = createMachine(
         actors: {
             signup: fromPromise(async ({ input }) => {
                 try {
-                    console.log("Processing signup...");
+                    safeLog("Processing signup...");
                     const User = input.userModel;
                     const findUsername = await User.findOne({ username: input.signupData.username });
 
@@ -355,7 +356,7 @@ const authMachine = createMachine(
                     });
                 
                     const createdUser = await User.findOne({ userId });
-                    console.log("Created user: " + createdUser);
+                    safeLog("Created user: " + createdUser);
                 
                     return {
                         header: "registration_response",
@@ -374,15 +375,16 @@ const authMachine = createMachine(
                     throw error;
                 }
             }),
+
             authenticating: fromPromise(async ({ input }) => {
-                console.log("Autheticating...")
+                safeLog("Autheticating...")
                 try {
                     const User = input.userModel;
-                    const payload = jwt.verify(input.loginData?.token, input.jwtSecretKey);
+                    const payload = jwt.verify(input.loginData?.authToken, input.jwtSecretKey);
                     const userId = input.loginData?.userId;
                     
                     if (payload.userId !== userId) {
-                        console.log("Token passt nicht zu UserID.");
+                        safeLog("Token passt nicht zu UserID.");
                     
                         return {
                             header: "auth_response",
@@ -397,7 +399,7 @@ const authMachine = createMachine(
                         const user = await User.findOne({ userId });
                     
                         if (user == null) {
-                            console.log("User nicht gefunden.");
+                            safeLog("User nicht gefunden.");
                         
                             return {
                                 header: "auth_response",
@@ -443,6 +445,7 @@ const authMachine = createMachine(
                 }
             }),
         },
+
         guards: {
             isSignupRequest: ({ context }) => context.isSignupRequest,
             isLoginRequest:  ({ context }) => context.isLoginRequest,

@@ -18,7 +18,7 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const SECRET_KEY = process.env.JWT_SECRET;
 
 const app = express();
-app.listen(1001, () => console.log("HTTPS Server listening on port 1001"));
+app.listen(1001, () => safeLog("HTTPS Server listening on port 1001"));
 app.use(express.static(path.join(__dirname, "public")));
 
 const dbConnection = mongoose.createConnection("mongodb://server:supersecuremongodbpassword@127.0.0.1:27017/hazelnut_db?authSource=admin");
@@ -47,12 +47,12 @@ wss.on("connection", (client) => {
             }
 
         } catch (err) {
-            console.log(err.toString());
+            safeLog(err.toString());
         }
     });
 
     client.on("close", () => {
-        console.log("closed connection");
+        safeLog("closed connection");
     });
 });
 
@@ -61,11 +61,11 @@ wss.broadcast = function broadcast(payload) {
 
     wss.clients.forEach((client) => {
         if (client.ready == true && receiversList.some(r => r.userId === client.userId)) {
-            console.log("broadcasting to:", client.userId);
+            safeLog("broadcasting to:", client.userId);
 
             const _enc = aesGcmEncrypt(client.sessionKey, JSON.stringify(payload));
             const response = JSON.stringify({ type: "enc", iv: _enc.iv, data: _enc.data, tag: _enc.tag });
-            console.log("response", response);
+            safeLog("response", response);
             
             client.send(response);
         }
@@ -80,7 +80,7 @@ setInterval(() => {
           { $set: { online: false, lastSeen: new Date().toISOString() } }
         );
 
-        console.log("terminating dead connection:", client.userId ?? "unknown");
+        safeLog("terminating dead connection:", client.userId ?? "unknown");
         return client.terminate();
     }
 
