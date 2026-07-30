@@ -1,25 +1,24 @@
 const { aesGcmEncrypt } = require("./CryptUtils");
 const { safeLog } = require("./ServerControl");
+const { StatusCodes } = require("../schemes/StatusCodes");
 const jwt = require("jsonwebtoken");
 const admin = require("firebase-admin");
 const JWT_SECRET_KEY = process.env.JWT_SECRET;
 
 async function auth(userModel, userId, token) {
     try {
-        const payload = jwt.verify(token, JWT_SECRET_KEY);
-        if (payload.userId !== userId) return 1; // -- Token passt nicht zu UserID
-
         const user = await userModel.findOne({ userId: userId });
-        if (user == null) return 2; // -- User nicht gefunden
+        if (user == null) return StatusCodes.USER_NOT_FOUND;
 
-        if (user.userId == userId) return 0; // -- Erfolgreich authentifiziert
+        const payload = jwt.verify(token, JWT_SECRET_KEY);
+        if (payload.userId !== userId) return StatusCodes.INVALID_TOKEN_FOR_USERID;
+
+        return StatusCodes.AUTH_SUCCESS
     }
 
     catch (err) {
-        if (err.name === "TokenExpiredError") return 3;
-        throw new Error(err); // -- Invalider Token
+        if (err.name === "TokenExpiredError") return StatusCodes.AUTH_TOKEN_EXPIRED;
     }
-    
 }
 
 function isEmptyObject(obj) {
